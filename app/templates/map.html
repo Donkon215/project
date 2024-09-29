@@ -8,6 +8,7 @@
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> <!-- Added Chart.js -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css" />
@@ -101,7 +102,7 @@
     <div id="map"></div>
 
     <script>
-        // Navigation toggle for small screens
+                // Navigation toggle for small screens
         function toggleNav() {
             var nav = document.getElementById("myTopnav");
             if (nav.className === "topnav") {
@@ -151,7 +152,9 @@
                     var icon = getIcon(markerData.status, markerData.battery.replace('%', ''));
                     var marker = L.marker([markerData.lat, markerData.lon])
                         .setIcon(icon)
-                        .bindPopup(`<div>DWLR_Id: ${markerData.id}<br>Status: ${markerData.status}<br>Battery: ${markerData.battery}</div>`)
+                        .bindPopup(function() {
+                            return generatePopupContent(markerData);
+                        })
                         .addTo(map);
 
                     markers[markerData.id] = marker;
@@ -159,11 +162,89 @@
             });
         }
 
+        // Function to generate popup content with both battery and water level charts
+        function generatePopupContent(markerData) {
+            var popupContent = `<div>
+                <div>DWLR_Id: ${markerData.id}</div>
+                <div>Status: ${markerData.status}</div>
+                <div>Battery: ${markerData.battery}</div>
+                <canvas id="batteryDonutChart${markerData.id}" width="200" height="200"></canvas>
+                <div>Water Level: ${markerData.water_level} (mbgl)</div>
+                <canvas id="waterLevelBarChart${markerData.id}" width="200" height="200"></canvas>
+            </div>`;
+
+            setTimeout(function() {
+                // Battery Donut Chart
+                var batteryCtx = document.getElementById(`batteryDonutChart${markerData.id}`).getContext('2d');
+                new Chart(batteryCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Used Battery', 'Remaining Battery'],
+                        datasets: [{
+                            label: 'Battery Level',
+                            data: [100 - parseFloat(markerData.battery.replace('%', '')), parseFloat(markerData.battery.replace('%', ''))],
+                            backgroundColor: ['#F44336', '#4CAF50'], // Red for used, green for remaining
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Battery Level'
+                            }
+                        }
+                    }
+                });
+
+                // Water Level Bar Chart
+                var waterCtx = document.getElementById(`waterLevelBarChart${markerData.id}`).getContext('2d');
+                new Chart(waterCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Water Level'],
+                        datasets: [{
+                            label: 'Water Level',
+                            data: [markerData.water_level],
+                            backgroundColor: '#007BFF',
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Water Level '
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 15
+                            }
+                        }
+                    }
+                });
+
+            }, 200); // Delay to ensure popup is rendered
+
+            return popupContent;
+        }
+
         // Initial marker update
         updateMarkers();
 
         // Update markers every 10 seconds
         setInterval(updateMarkers, 10000);
+
     </script>
 </body>
 </html>
