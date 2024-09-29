@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+
+        /* Navigation Bar */
+        .topnav {
+            background-color: #333;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            height: 60px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .topnav a {
+            color: #f2f2f2;
+            text-align: center;
+            padding: 14px 16px;
+            text-decoration: none;
+            font-size: 17px;
+            transition: background-color 0.3s;
+        }
+
+        .topnav a:hover {
+            background-color: #ddd;
+            color: black;
+        }
+
+        .topnav .hamburger {
+            display: none;
+            font-size: 30px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .topnav .logo {
+            font-size: 20px;
+            font-weight: bold;
+            color: #04AA6D;
+        }
+
+        /* For Small Screens */
+        @media screen and (max-width: 600px) {
+            .topnav a { display: none; }
+            .topnav .hamburger {
+                display: block;
+            }
+        }
+
+        @media screen and (max-width: 600px) {
+            .topnav.responsive a {
+                display: block;
+                text-align: left;
+            }
+        }
+
+        /* Map Styles */
+        #map {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            top: 60px;
+        }
+
+        .leaflet-container {
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <div class="topnav" id="myTopnav">
+        <a href="{{ url_for('home.home') }}">Home</a>
+        <a href="{{ url_for('map.map_view') }}">Map</a>
+        <span class="hamburger" onclick="toggleNav()">&#9776;</span>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <script>
+        // Navigation toggle for small screens
+        function toggleNav() {
+            var nav = document.getElementById("myTopnav");
+            if (nav.className === "topnav") {
+                nav.className += " responsive";
+            } else {
+                nav.className = "topnav";
+            }
+        }
+
+        // Leaflet Map
+        var map = L.map("map", {
+            center: [20.5937, 78.9629],
+            zoom: 5,
+            zoomControl: true
+        });
+
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var markers = {};
+
+        function getIcon(status, battery) {
+            let markerColor = 'green';
+            if (status.includes('Abnormal')) {
+                markerColor = 'red';
+            } else if (parseInt(battery) < 60) {
+                markerColor = 'orange';
+            }
+            return L.AwesomeMarkers.icon({
+                icon: 'info-sign',
+                iconColor: 'white',
+                markerColor: markerColor,
+                prefix: 'glyphicon'
+            });
+        }
+
+        function updateMarkers() {
+            $.getJSON('/map_view/update_markers', function(data) {
+                // Remove existing markers
+                for (var id in markers) {
+                    map.removeLayer(markers[id]);
+                }
+
+                // Add new markers
+                data.forEach(function(markerData) {
+                    var icon = getIcon(markerData.status, markerData.battery.replace('%', ''));
+                    var marker = L.marker([markerData.lat, markerData.lon])
+                        .setIcon(icon)
+                        .bindPopup(`<div>DWLR_Id: ${markerData.id}<br>Status: ${markerData.status}<br>Battery: ${markerData.battery}</div>`)
+                        .addTo(map);
+
+                    markers[markerData.id] = marker;
+                });
+            });
+        }
+
+        // Initial marker update
+        updateMarkers();
+
+        // Update markers every 10 seconds
+        setInterval(updateMarkers, 10000);
+    </script>
+</body>
+</html>
