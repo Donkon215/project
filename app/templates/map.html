@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home</title>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css">
     <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
@@ -97,10 +99,10 @@
         <a href="{{ url_for('map.map_view') }}">Map</a>
         <span class="hamburger" onclick="toggleNav()">&#9776;</span>
     </div>
-
+    
     <!-- Map -->
     <div id="map"></div>
-
+    <div id="toastContainer" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999;"></div>
     <script>
                 // Navigation toggle for small screens
         function toggleNav() {
@@ -141,26 +143,48 @@
         }
 
         function updateMarkers() {
-            $.getJSON('/map_view/update_markers', function(data) {
-                // Remove existing markers
-                for (var id in markers) {
-                    map.removeLayer(markers[id]);
-                }
-
-                // Add new markers
-                data.forEach(function(markerData) {
-                    var icon = getIcon(markerData.status, markerData.battery.replace('%', ''));
-                    var marker = L.marker([markerData.lat, markerData.lon])
-                        .setIcon(icon)
-                        .bindPopup(function() {
-                            return generatePopupContent(markerData);
-                        })
-                        .addTo(map);
-
-                    markers[markerData.id] = marker;
-                });
-            });
+    $.getJSON('/map_view/update_markers', function(data) {
+        // Remove existing markers
+        for (var id in markers) {
+            map.removeLayer(markers[id]);
         }
+
+        var abnormalMarkers = [];
+        var lowBatteryMarkers = [];
+
+        // Add new markers
+        data.forEach(function(markerData) {
+            var icon = getIcon(markerData.status, markerData.battery.replace('%', ''));
+            var marker = L.marker([markerData.lat, markerData.lon])
+                .setIcon(icon)
+                .bindPopup(function() {
+                    return generatePopupContent(markerData);
+                })
+                .addTo(map);
+
+            markers[markerData.id] = marker;
+
+            // Check for abnormality
+            if (markerData.status.includes('Abnormal')) {
+                abnormalMarkers.push(markerData);
+            }
+
+            // Check for low battery (below 60%)
+            if (parseInt(markerData.battery.replace('%', '')) < 60) {
+                lowBatteryMarkers.push(markerData);
+            }
+        });
+
+        // Trigger abnormality and low battery notifications
+        if (abnormalMarkers.length > 0) {
+            triggerAbnormalityNotification(abnormalMarkers);
+        }
+        if (lowBatteryMarkers.length > 0) {
+            triggerLowBatteryNotification(lowBatteryMarkers);
+        }
+    });
+}
+
 
         // Function to generate popup content with both battery and water level charts
         function generatePopupContent(markerData) {
@@ -238,6 +262,55 @@
 
             return popupContent;
         }
+
+        function triggerLowBatteryNotification(lowBatteryMarkers) {
+    lowBatteryMarkers.forEach(marker => {
+        let toastHTML = `
+        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000" style="min-width: 250px;">
+            <div class="toast-header">
+                <strong class="me-auto text-warning">Low Battery Alert!</strong>
+                <small>${marker.id}</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                DWLR_Id: ${marker.id}<br>
+                Battery Level: ${marker.battery}%<br>
+                Status: ${marker.status}
+            </div>
+        </div>`;
+
+        // Append the toast to the toastContainer
+        $("#toastContainer").append(toastHTML);
+
+        // Initialize and show the toast
+        $("#toastContainer .toast").last().toast('show');
+    });
+}
+
+
+        function triggerAbnormalityNotification(abnormalMarkers) {
+    abnormalMarkers.forEach(marker => {
+        let toastHTML = `
+        <div class="toast" role="alert" aria-live="assertive" aria-atomic="true" data-bs-delay="5000" style="min-width: 250px;">
+            <div class="toast-header">
+                <strong class="me-auto text-danger">Abnormality Detected!</strong>
+                <small>${marker.id}</small>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body">
+                DWLR_Id: ${marker.id}<br>
+                Status: ${marker.status}<br>
+                Battery: ${marker.battery}
+            </div>
+        </div>`;
+
+        // Append the toast to the toastContainer
+        $("#toastContainer").append(toastHTML);
+
+        // Initialize and show the toast
+        $("#toastContainer .toast").last().toast('show');
+    });
+}
 
         // Initial marker update
         updateMarkers();
